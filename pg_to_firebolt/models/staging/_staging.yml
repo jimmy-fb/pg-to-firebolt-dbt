@@ -1,0 +1,33 @@
+version: 2
+
+models:
+  - name: stg_orders
+    description: "Cleaned and typed orders from PostgreSQL."
+    columns:
+      - name: order_id
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        tests:
+          - not_null
+      - name: status
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["completed", "pending", "cancelled"]
+      - name: amount_usd
+        tests:
+          - not_null
+
+  - name: stg_customers
+    description: "Cleaned customer master from PostgreSQL."
+    columns:
+      - name: customer_id
+        tests:
+          - unique
+          - not_null
+      - name: email
+        tests:
+          - unique
+          - not_null

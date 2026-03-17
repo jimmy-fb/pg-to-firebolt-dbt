@@ -1,0 +1,8 @@
+.venv/
+pg_to_firebolt/target/
+pg_to_firebolt/dbt_packages/
+pg_to_firebolt/logs/
+logs/
+*.pyc
+__pycache__/
+.env

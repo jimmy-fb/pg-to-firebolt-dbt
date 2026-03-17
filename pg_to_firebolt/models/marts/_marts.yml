@@ -1,0 +1,33 @@
+version: 2
+
+models:
+  - name: fct_orders
+    description: >
+      Denormalised orders fact table. Each row is one order enriched with
+      customer attributes. Materialised as a TABLE in Firebolt.
+    columns:
+      - name: order_id
+        tests:
+          - unique
+          - not_null
+      - name: status
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["completed", "pending", "cancelled"]
+      - name: amount_usd
+        tests:
+          - not_null
+
+  - name: agg_customer_revenue
+    description: >
+      Customer-level revenue aggregation. One row per customer.
+      Materialised as a TABLE in Firebolt.
+    columns:
+      - name: customer_id
+        tests:
+          - unique
+          - not_null
+      - name: total_orders
+        tests:
+          - not_null

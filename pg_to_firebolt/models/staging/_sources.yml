@@ -1,0 +1,50 @@
+version: 2
+
+sources:
+  - name: postgres_raw
+    description: "Raw tables served by the deployed PostgreSQL instance."
+    database: "{{ env_var('PG_DBNAME', 'postgres') }}"
+    schema: "{{ env_var('PG_SCHEMA', 'public') }}"
+    loader: postgresql
+
+    tables:
+      - name: orders
+        description: "Transactional orders from the operational database."
+        columns:
+          - name: order_id
+            description: "Unique order identifier."
+            tests:
+              - unique
+              - not_null
+          - name: customer_id
+            description: "FK to customers table."
+            tests:
+              - not_null
+          - name: order_date
+            description: "Date the order was placed."
+            tests:
+              - not_null
+          - name: status
+            description: "Current order status."
+            tests:
+              - accepted_values:
+                  arguments:
+                    values: ["completed", "pending", "cancelled"]
+          - name: amount
+            description: "Order total in USD."
+            tests:
+              - not_null
+
+      - name: customers
+        description: "Customer master data."
+        columns:
+          - name: customer_id
+            description: "Unique customer identifier."
+            tests:
+              - unique
+              - not_null
+          - name: email
+            description: "Customer email address."
+            tests:
+              - unique
+              - not_null

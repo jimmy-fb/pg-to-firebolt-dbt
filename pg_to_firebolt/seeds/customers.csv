@@ -1,0 +1,8 @@
+customer_id,first_name,last_name,email,country,created_at
+101,Alice,Smith,alice@example.com,US,2023-11-01
+102,Bob,Jones,bob@example.com,UK,2023-11-05
+103,Carol,White,carol@example.com,CA,2023-11-10
+104,David,Brown,david@example.com,US,2023-11-15
+105,Eve,Davis,eve@example.com,AU,2023-11-20
+106,Frank,Miller,frank@example.com,DE,2023-11-25
+107,Grace,Wilson,grace@example.com,US,2023-12-01
