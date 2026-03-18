@@ -2,50 +2,83 @@
 
 A dbt pipeline that reads from a **PostgreSQL** source and writes to **Firebolt** as the destination.
 
----
-
-## How it works
-
 ```
-PostgreSQL (source)
-  └── orders, customers
-        │
-        ▼  staging models — views created on PostgreSQL
-  stg_orders, stg_customers
-        │
-        ▼  mart models — tables created in Firebolt
-  fct_orders, agg_customer_revenue
+PostgreSQL (source)  ──►  dbt transformations  ──►  Firebolt (destination)
 ```
 
 ---
 
-## Step 1 — Configure your source (PostgreSQL)
+## Prerequisites
 
-This project expects a running PostgreSQL instance. You can use the bundled Docker setup or point to your own.
+- Python 3.12
+- Docker (only if using the local PostgreSQL option)
+- A Firebolt account — [sign up at app.firebolt.io](https://app.firebolt.io)
 
-### Option A — Use Docker (local)
+Install Python dependencies once:
+
+```bash
+make install
+```
+
+---
+
+## dbt connection configuration (`profiles.yml`)
+
+dbt uses a file called `profiles.yml` to know where to connect.  
+This project defines **two named outputs** inside one profile — one for the source, one for the destination.
+
+The file lives at `~/.dbt/profiles.yml`. It is already created when you run `make install`, but you need to fill in your own credentials.
+
+```yaml
+pg_to_firebolt:
+  target: firebolt          # default target when you run dbt commands
+
+  outputs:
+
+    # ── Source: PostgreSQL ────────────────────────────────────────────────────
+    postgres:
+      type: postgres
+      host: localhost        # change to your PG host
+      port: 5432
+      user: postgres
+      password: postgres
+      dbname: postgres
+      schema: public
+      threads: 4
+
+    # ── Destination: Firebolt ─────────────────────────────────────────────────
+    firebolt:
+      type: firebolt
+      client_id: <your-service-account-id>
+      client_secret: <your-service-account-secret>
+      account_name: <your-account-name>
+      database: <your-database-name>
+      engine_name: <your-engine-name>   # leave blank for default engine
+      schema: public
+      threads: 4
+```
+
+> The actual file uses environment variables (`{{ env_var(...) }}`) so you never commit secrets.  
+> Copy `.env.example` → `.env` and fill in your values — they are loaded automatically.
+
+---
+
+## Configure the source (PostgreSQL)
+
+### Option A — Local Docker (recommended for testing)
 
 ```bash
 docker compose up -d postgres
 ```
 
-This starts `postgres:16-alpine` on `localhost:5432` with:
+Starts `postgres:16-alpine` on `localhost:5432`. No changes needed in `profiles.yml` — the defaults match.
 
-| Setting | Value |
-|---------|-------|
-| Host | `localhost` |
-| Port | `5432` |
-| User | `postgres` |
-| Password | `postgres` |
-| Database | `postgres` |
-| Schema | `public` |
+### Option B — Your own PostgreSQL
 
-### Option B — Use your own PostgreSQL
-
-Set the following variables in your `.env` file:
+Edit the `postgres` output in `~/.dbt/profiles.yml`, or set these variables in `.env`:
 
 ```env
-PG_HOST=your-postgres-host
+PG_HOST=your-pg-host
 PG_PORT=5432
 PG_USER=your-user
 PG_PASSWORD=your-password
@@ -53,25 +86,26 @@ PG_DBNAME=your-database
 PG_SCHEMA=public
 ```
 
-Then load the test tables into it:
+Verify the connection:
 
 ```bash
-make seed
+cd pg_to_firebolt
+dbt debug --target postgres
 ```
-
-This runs `dbt seed` and inserts the `orders` (10 rows) and `customers` (7 rows) CSV files into the schema you configured.
 
 ---
 
-## Step 2 — Configure your destination (Firebolt)
+## Configure the destination (Firebolt)
 
-### Create a service account
+### 1. Create a service account
 
 1. Log in to [app.firebolt.io](https://app.firebolt.io)
-2. Go to **Configure → Service Accounts** and create a new service account
+2. Go to **Configure → Service Accounts → Create**
 3. Copy the **Client ID** and **Client Secret**
 
-### Set Firebolt variables in `.env`
+### 2. Fill in the Firebolt credentials
+
+Edit the `firebolt` output in `~/.dbt/profiles.yml`, or set these variables in `.env`:
 
 ```env
 FIREBOLT_CLIENT_ID=<your-service-account-id>
@@ -82,12 +116,9 @@ FIREBOLT_ENGINE=<your-engine-name>
 FIREBOLT_SCHEMA=public
 ```
 
-> `FIREBOLT_ENGINE` can be left blank to use the default engine attached to the database.
-
-### Test the Firebolt connection
+### 3. Verify the connection
 
 ```bash
-source .venv/bin/activate
 cd pg_to_firebolt
 dbt debug --target firebolt
 ```
@@ -96,29 +127,31 @@ A successful run prints `All checks passed`.
 
 ---
 
-## Step 3 — Run the pipeline
+## Start the pipeline
+
+Once both connections are verified, run the full job:
 
 ```bash
 make full-job
 ```
 
-This executes in order:
+This executes the following steps in order:
 
-| Step | Command | Target |
-|------|---------|--------|
-| Install packages | `dbt deps` | — |
-| Load test data | `dbt seed` | PostgreSQL |
-| Build staging views | `dbt run --select staging` | PostgreSQL |
-| Build mart tables | `dbt run --select marts` | Firebolt |
-| Run all tests | `dbt test` | Firebolt |
+| # | Step | dbt command | Runs on |
+|---|------|-------------|---------|
+| 1 | Install packages | `dbt deps` | — |
+| 2 | Load test data | `dbt seed` | PostgreSQL |
+| 3 | Build staging views | `dbt run --select staging` | PostgreSQL |
+| 4 | Build mart tables | `dbt run --select marts` | Firebolt |
+| 5 | Run all tests | `dbt test` | Firebolt |
 
-Or run each step individually:
+Or run steps individually:
 
 ```bash
-make deps    # install dbt_utils
-make seed    # load CSVs → PostgreSQL
-make run     # staging on PG + marts on Firebolt
-make test    # schema + singular tests
+make deps    # step 1 — install dbt_utils
+make seed    # step 2 — load CSV data into PostgreSQL
+make run     # steps 3 + 4 — staging on PG, marts on Firebolt
+make test    # step 5 — all schema and singular tests
 ```
 
 ---
@@ -128,30 +161,16 @@ make test    # schema + singular tests
 ```
 pg_to_firebolt/
 ├── seeds/
-│   ├── orders.csv          # 10 sample orders
-│   └── customers.csv       # 7 sample customers
+│   ├── orders.csv              # 10 sample orders
+│   └── customers.csv           # 7 sample customers
 ├── models/
-│   ├── staging/
-│   │   ├── _sources.yml    # PostgreSQL source declaration
+│   ├── staging/                # views built on PostgreSQL
+│   │   ├── _sources.yml        # declares the PG tables as dbt sources
 │   │   ├── stg_orders.sql
 │   │   └── stg_customers.sql
-│   └── marts/
-│       ├── fct_orders.sql           # denormalised fact table → Firebolt
-│       └── agg_customer_revenue.sql # per-customer aggregation → Firebolt
+│   └── marts/                  # tables built in Firebolt
+│       ├── fct_orders.sql
+│       └── agg_customer_revenue.sql
 └── tests/
     └── assert_no_negative_amounts.sql
-```
-
----
-
-## Prerequisites
-
-- Python 3.12
-- Docker (for local PostgreSQL)
-- A Firebolt account
-
-Install Python dependencies once:
-
-```bash
-make install
 ```
